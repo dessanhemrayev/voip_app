@@ -22,8 +22,8 @@ class _MyRegisterWidget extends State<RegisterWidget>
   final TextEditingController _authorizationUserController =
       TextEditingController();
   final Map<String, String> _wsExtraHeaders = {
-    'Origin': ' https://call.svgun.ru',
-    'Host': 'call.svgun.ru'
+    'Origin': ' https://hostname',
+    'Host': 'hostname'
   };
   late SharedPreferences _preferences;
   late RegistrationState _registerState;
@@ -65,9 +65,9 @@ class _MyRegisterWidget extends State<RegisterWidget>
     setState(() {
       _portController.text = '8089';
       _wsUriController.text =
-          _preferences.getString('ws_uri') ?? 'wss://call.svgun.ru:8089/ws';
+          _preferences.getString('ws_uri') ?? 'wss://hostname:8089/ws';
       _sipUriController.text =
-          _preferences.getString('sip_uri') ?? '101@call.svgun.ru';
+          _preferences.getString('sip_uri') ?? '101@hostname';
       _displayNameController.text =
           _preferences.getString('display_name') ?? '101';
       _passwordController.text = _preferences.getString('password') ?? '';

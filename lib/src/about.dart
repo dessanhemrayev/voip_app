@@ -13,7 +13,7 @@ class AboutWidget extends StatelessWidget {
           child: Center(
             child: Column(
               children: <Widget>[
-                Text('GitHub:\nhttps://github.com/cloudwebrtc/dart-sip-ua.git'),
+                Text('GitHub:\nhttps://github.com/dessanhemrayev/voip_app.git'),
               ],
             ),
           ),

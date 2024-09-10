@@ -37,7 +37,7 @@ class _MyDialPadWidget extends State<DialPadWidget>
 
   void _loadSettings() async {
     _preferences = await SharedPreferences.getInstance();
-    _dest = _preferences.getString('dest') ?? 'sip:101@call.svgun.ru';
+    _dest = _preferences.getString('dest') ?? 'sip:101@hostname';
     _textController = TextEditingController(text: _dest);
     _textController!.text = _dest!;
 
