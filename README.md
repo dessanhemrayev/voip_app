@@ -1,6 +1,6 @@
-# Voip app in Flutter
+# Voip app on Flutter
 
-A new Flutter project.
+Flutter project use (dart-sip-ua)[https://github.com/flutter-webrtc/dart-sip-ua]
 
 ## Getting Started
 
