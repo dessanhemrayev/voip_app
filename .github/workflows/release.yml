@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)
+          name=${current%%+*}
+          build=${current##*+}
+          IFS=. read -r major minor patch <<< "$name"
+
+          if previous_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null); then
+            messages=$(git log "$previous_tag..HEAD" --format='%s%n%b')
+          else
+            messages=$(git log HEAD --format='%s%n%b')
+          fi
+
+          if grep -qE '^[a-z]+(\([^)]*\))?!:|BREAKING[- ]CHANGE' <<< "$messages"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qE '^feat(\([^)]*\))?:' <<< "$messages"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          build=$((build + 1))
+
+          new_name="$major.$minor.$patch"
+          sed -i -E "s/^version:.*/version: $new_name+$build/" pubspec.yaml
+
+          echo "name=$new_name" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          tag="v$new_name"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          tag_exists=false
+          if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+            tag_commit=$(git rev-list -n 1 "$tag")
+            if [[ "$(git rev-parse "$tag_commit^")" != "$GITHUB_SHA" ]]; then
+              echo "::error::Tag $tag already exists for a different workflow commit"
+              exit 1
+            fi
+            tag_exists=true
+          fi
+          echo "tag_exists=$tag_exists" >> "$GITHUB_OUTPUT"
+          echo "Version: $current -> $new_name+$build"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore Android signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          : "${KEYSTORE_BASE64:?Set the ANDROID_KEYSTORE_BASE64 repository secret}"
+          : "${KEYSTORE_PASSWORD:?Set the ANDROID_KEYSTORE_PASSWORD repository secret}"
+          : "${KEY_ALIAS:?Set the ANDROID_KEY_ALIAS repository secret}"
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          cat > android/key.properties <<PROPS
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          PROPS
+
+      - run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk "voip_app-${{ steps.version.outputs.tag }}.apk"
+
+      - name: Commit version and tag
+        id: publish
+        if: steps.version.outputs.tag_exists != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore(release): ${{ steps.version.outputs.tag }} [skip ci]"
+          git tag "${{ steps.version.outputs.tag }}"
+          if git push --atomic origin HEAD:main "refs/tags/${{ steps.version.outputs.tag }}"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch origin main --tags
+            remote_main=$(git rev-parse origin/main)
+            if [[ "$remote_main" != "$GITHUB_SHA" ]] && git merge-base --is-ancestor "$GITHUB_SHA" "$remote_main"; then
+              echo "::warning::main advanced during the build; release is deferred to the queued run"
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::Could not push the release commit and tag; main did not advance"
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.tag_exists == 'true' || steps.publish.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          apk="voip_app-${tag}.apk"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" --clobber
+          else
+            gh release create "$tag" "$apk" \
+              --title "VoIP App $tag" \
+              --generate-notes
+          fi
