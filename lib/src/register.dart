@@ -151,7 +151,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
       borderRadius: BorderRadius.circular(5),
     );
     Color? textLabelColor =
-        Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.5);
+        Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.5);
     return Scaffold(
       appBar: AppBar(
         title: Text("SIP Account"),
@@ -161,7 +161,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
         children: <Widget>[
           Center(
             child: Text(
-              'Register Status: ${EnumHelper.getName(_registerState.state)}',
+              'Register Status: ${_registerState.state.toString().split('.').last}',
               style: TextStyle(fontSize: 18, color: textColor),
             ),
           ),

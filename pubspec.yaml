@@ -15,17 +15,17 @@ dependencies:
 
   sip_ua: ^1.0.0
   shared_preferences: ^2.2.0
-  permission_handler: ^11.1.0
-  flutter_webrtc: ^0.10.4
-  provider: 6.1.2
+  permission_handler: ^13.0.2
+  flutter_webrtc: ^1.6.2+hotfix.4
+  provider: ^6.1.5+1
   logger: ^2.4.0
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
