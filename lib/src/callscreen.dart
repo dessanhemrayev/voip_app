@@ -47,7 +47,11 @@ class _MyCallScreenWidget extends State<CallScreenWidget>
 
   String? get remoteIdentity => call!.remote_identity;
 
-  String get direction => call!.direction;
+  String get direction {
+    final d = call?.direction;
+    if (d == null) return '';
+    return d.name.toUpperCase();
+  }
 
   Call? get call => widget._call;
 
@@ -104,7 +108,7 @@ class _MyCallScreenWidget extends State<CallScreenWidget>
     if (callState.state == CallStateEnum.HOLD ||
         callState.state == CallStateEnum.UNHOLD) {
       _hold = callState.state == CallStateEnum.HOLD;
-      _holdOriginator = callState.originator;
+      _holdOriginator = callState.originator?.name;
       setState(() {});
       return;
     }
@@ -177,7 +181,7 @@ class _MyCallScreenWidget extends State<CallScreenWidget>
 
   void _handleStreams(CallState event) async {
     MediaStream? stream = event.stream;
-    if (event.originator == 'local') {
+    if (event.originator == Originator.local) {
       if (_localRenderer != null) {
         _localRenderer!.srcObject = stream;
       }
@@ -186,7 +190,7 @@ class _MyCallScreenWidget extends State<CallScreenWidget>
       }
       _localStream = stream;
     }
-    if (event.originator == 'remote') {
+    if (event.originator == Originator.remote) {
       if (_remoteRenderer != null) {
         _remoteRenderer!.srcObject = stream;
       }
@@ -644,7 +648,7 @@ class _MyCallScreenWidget extends State<CallScreenWidget>
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('[$direction] ${EnumHelper.getName(_state)}'),
+        title: Text('[$direction] ${_state.toString().split('.').last}'),
       ),
       body: _buildContent(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
