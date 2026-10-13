@@ -82,7 +82,7 @@ For example, a release may update `1.0.0+1` to `1.1.0+2`. The generated APK and 
 By default the app uses Google's STUN server: stun:stun.l.google.com:19302. To improve connectivity behind NATs or symmetric firewalls you can add STUN and/or TURN servers in **Account > Register**:
 
 - **STUN URI** (optional) — e.g. stun:stun.your.provider:3478
-- **TURN URI** (optional) — e.g. 	urn:turn.your.provider:3478
+- **TURN URI** (optional) — e.g. turn:turn.your.provider:3478
 - **TURN Username** (optional)
 - **TURN Password/Credential** (optional)
 
