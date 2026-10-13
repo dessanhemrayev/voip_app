@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sip_ua/sip_ua.dart';
@@ -30,6 +32,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
     'Host': 'hostname'
   };
   late SharedPreferences _preferences;
+  late final Future<void> _settingsLoaded;
   late RegistrationState _registerState;
 
   TransportType _selectedTransport = TransportType.TCP;
@@ -41,7 +44,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
     super.initState();
     _registerState = helper!.registerState;
     helper!.addSipUaHelperListener(this);
-    _loadSettings();
+    _settingsLoaded = _loadSettings();
     if (kIsWeb) {
       _selectedTransport = TransportType.WS;
     }
@@ -50,6 +53,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
   @override
   void dispose() {
     _passwordController.dispose();
+    _portController.dispose();
     _wsUriController.dispose();
     _sipUriController.dispose();
     _displayNameController.dispose();
@@ -68,7 +72,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
     _saveSettings();
   }
 
-  void _loadSettings() async {
+  Future<void> _loadSettings() async {
     _preferences = await SharedPreferences.getInstance();
     setState(() {
       _portController.text = '8089';
@@ -81,24 +85,37 @@ class _MyRegisterWidget extends State<RegisterWidget>
       _passwordController.text = _preferences.getString('password') ?? '';
       _authorizationUserController.text =
           _preferences.getString('auth_user') ?? '101';
-      _stunUriController.text = _preferences.getString('stun_uri') ?? '';
-      _turnUriController.text = _preferences.getString('turn_uri') ?? '';
-      _turnUsernameController.text = _preferences.getString('turn_user') ?? '';
-      _turnPasswordController.text = _preferences.getString('turn_pass') ?? '';
+      final String? iceJson = _preferences.getString('ice_config');
+      if (iceJson != null) {
+        try {
+          final Map<String, dynamic> ice =
+              jsonDecode(iceJson) as Map<String, dynamic>;
+          _stunUriController.text = ice['stun'] as String? ?? '';
+          _turnUriController.text = ice['turn'] as String? ?? '';
+          _turnUsernameController.text = ice['turn_user'] as String? ?? '';
+          _turnPasswordController.text = ice['turn_pass'] as String? ?? '';
+        } catch (_) {}
+      }
     });
   }
 
-  void _saveSettings() {
-    _preferences.setString('port', _portController.text);
-    _preferences.setString('ws_uri', _wsUriController.text);
-    _preferences.setString('sip_uri', _sipUriController.text);
-    _preferences.setString('display_name', _displayNameController.text);
-    _preferences.setString('password', _passwordController.text);
-    _preferences.setString('auth_user', _authorizationUserController.text);
-    _preferences.setString('stun_uri', _stunUriController.text);
-    _preferences.setString('turn_uri', _turnUriController.text);
-    _preferences.setString('turn_user', _turnUsernameController.text);
-    _preferences.setString('turn_pass', _turnPasswordController.text);
+  Future<void> _saveSettings() async {
+    _preferences = await SharedPreferences.getInstance();
+    await _preferences.setString('port', _portController.text);
+    await _preferences.setString('ws_uri', _wsUriController.text);
+    await _preferences.setString('sip_uri', _sipUriController.text);
+    await _preferences.setString('display_name', _displayNameController.text);
+    await _preferences.setString('password', _passwordController.text);
+    await _preferences.setString('auth_user', _authorizationUserController.text);
+    // Single value so the ICE fields can never be partially persisted.
+    await _preferences.setString(
+        'ice_config',
+        jsonEncode(<String, String>{
+          'stun': _stunUriController.text,
+          'turn': _turnUriController.text,
+          'turn_user': _turnUsernameController.text,
+          'turn_pass': _turnPasswordController.text,
+        }));
   }
 
   @override
@@ -109,13 +126,18 @@ class _MyRegisterWidget extends State<RegisterWidget>
   }
 
   void _alert(BuildContext context, String alertFieldName) {
+    _alertMessage(context, '$alertFieldName is empty',
+        'Please enter $alertFieldName!');
+  }
+
+  void _alertMessage(BuildContext context, String title, String message) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('$alertFieldName is empty'),
-          content: Text('Please enter $alertFieldName!'),
+          title: Text(title),
+          content: Text(message),
           actions: <Widget>[
             TextButton(
               child: Text('Ok'),
@@ -129,11 +151,22 @@ class _MyRegisterWidget extends State<RegisterWidget>
     );
   }
 
-  void _handleSave(BuildContext context) {
+  Future<void> _handleSave(BuildContext context) async {
+    await _settingsLoaded;
+    if (!context.mounted) return;
     if (_wsUriController.text == '') {
       _alert(context, "WebSocket URL");
     } else if (_sipUriController.text == '') {
       _alert(context, "SIP URI");
+    }
+
+    final String turnUser = _turnUsernameController.text.trim();
+    final String turnPass = _turnPasswordController.text.trim();
+    if (_turnUriController.text.trim().isNotEmpty &&
+        turnUser.isNotEmpty != turnPass.isNotEmpty) {
+      _alertMessage(context, 'Incomplete TURN credentials',
+          'Enter both TURN username and password, or leave both empty.');
+      return;
     }
 
     UaSettings settings = UaSettings();
@@ -161,8 +194,6 @@ class _MyRegisterWidget extends State<RegisterWidget>
       iceServers.add(<String, String>{'urls': stun});
     }
     final String turn = _turnUriController.text.trim();
-    final String turnUser = _turnUsernameController.text.trim();
-    final String turnPass = _turnPasswordController.text.trim();
     if (turn.isNotEmpty) {
       if (turnUser.isNotEmpty && turnPass.isNotEmpty) {
         iceServers.add(<String, String>{
@@ -181,6 +212,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
     }
     settings.iceServers = iceServers;
 
+    await _saveSettings();
     helper!.start(settings);
   }
 
@@ -300,6 +332,78 @@ class _MyRegisterWidget extends State<RegisterWidget>
               enabledBorder: border,
               focusedBorder: border,
               hintText: _displayNameController.text.isEmpty ? '[Empty]' : null,
+            ),
+          ),
+          SizedBox(height: 15),
+          Text('STUN Server (optional)', style: TextStyle(color: textLabelColor)),
+          SizedBox(height: 5),
+          TextFormField(
+            controller: _stunUriController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: textFieldFill,
+              border: border,
+              enabledBorder: border,
+              focusedBorder: border,
+              hintText: 'stun:host:3478',
+            ),
+          ),
+          SizedBox(height: 15),
+          Text('TURN Server (optional)', style: TextStyle(color: textLabelColor)),
+          SizedBox(height: 5),
+          TextFormField(
+            controller: _turnUriController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: textFieldFill,
+              border: border,
+              enabledBorder: border,
+              focusedBorder: border,
+              hintText: 'turn:host:3478',
+            ),
+          ),
+          SizedBox(height: 15),
+          Text('TURN Username', style: TextStyle(color: textLabelColor)),
+          SizedBox(height: 5),
+          TextFormField(
+            controller: _turnUsernameController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: textFieldFill,
+              border: border,
+              enabledBorder: border,
+              focusedBorder: border,
+              hintText: '[Empty]',
+            ),
+          ),
+          SizedBox(height: 15),
+          Text('TURN Password', style: TextStyle(color: textLabelColor)),
+          SizedBox(height: 5),
+          TextFormField(
+            controller: _turnPasswordController,
+            keyboardType: TextInputType.text,
+            autocorrect: false,
+            obscureText: true,
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: textFieldFill,
+              border: border,
+              enabledBorder: border,
+              focusedBorder: border,
+              hintText: '[Empty]',
             ),
           ),
           const SizedBox(height: 20),

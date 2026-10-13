@@ -8,6 +8,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.5.2
+  flutter: ">=3.44.0" # required by flutter_webrtc ^1.6
 
 dependencies:
   flutter:
