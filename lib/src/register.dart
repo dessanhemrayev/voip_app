@@ -21,6 +21,10 @@ class _MyRegisterWidget extends State<RegisterWidget>
   final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _authorizationUserController =
       TextEditingController();
+  final TextEditingController _stunUriController = TextEditingController();
+  final TextEditingController _turnUriController = TextEditingController();
+  final TextEditingController _turnUsernameController = TextEditingController();
+  final TextEditingController _turnPasswordController = TextEditingController();
   final Map<String, String> _wsExtraHeaders = {
     'Origin': ' https://hostname',
     'Host': 'hostname'
@@ -50,6 +54,10 @@ class _MyRegisterWidget extends State<RegisterWidget>
     _sipUriController.dispose();
     _displayNameController.dispose();
     _authorizationUserController.dispose();
+    _stunUriController.dispose();
+    _turnUriController.dispose();
+    _turnUsernameController.dispose();
+    _turnPasswordController.dispose();
     super.dispose();
   }
 
@@ -73,6 +81,10 @@ class _MyRegisterWidget extends State<RegisterWidget>
       _passwordController.text = _preferences.getString('password') ?? '';
       _authorizationUserController.text =
           _preferences.getString('auth_user') ?? '101';
+      _stunUriController.text = _preferences.getString('stun_uri') ?? '';
+      _turnUriController.text = _preferences.getString('turn_uri') ?? '';
+      _turnUsernameController.text = _preferences.getString('turn_user') ?? '';
+      _turnPasswordController.text = _preferences.getString('turn_pass') ?? '';
     });
   }
 
@@ -83,6 +95,10 @@ class _MyRegisterWidget extends State<RegisterWidget>
     _preferences.setString('display_name', _displayNameController.text);
     _preferences.setString('password', _passwordController.text);
     _preferences.setString('auth_user', _authorizationUserController.text);
+    _preferences.setString('stun_uri', _stunUriController.text);
+    _preferences.setString('turn_uri', _turnUriController.text);
+    _preferences.setString('turn_user', _turnUsernameController.text);
+    _preferences.setString('turn_pass', _turnPasswordController.text);
   }
 
   @override
@@ -137,6 +153,33 @@ class _MyRegisterWidget extends State<RegisterWidget>
     settings.userAgent = 'Dart SIP Client v1.0.0';
     settings.dtmfMode = DtmfMode.RFC2833;
     settings.contact_uri = 'sip:${_sipUriController.text}';
+
+    // Build ICE servers (STUN/TURN)
+    List<Map<String, String>> iceServers = <Map<String, String>>[];
+    final String stun = _stunUriController.text.trim();
+    if (stun.isNotEmpty) {
+      iceServers.add(<String, String>{'urls': stun});
+    }
+    final String turn = _turnUriController.text.trim();
+    final String turnUser = _turnUsernameController.text.trim();
+    final String turnPass = _turnPasswordController.text.trim();
+    if (turn.isNotEmpty) {
+      if (turnUser.isNotEmpty && turnPass.isNotEmpty) {
+        iceServers.add(<String, String>{
+          'urls': turn,
+          'username': turnUser,
+          'credential': turnPass,
+        });
+      } else {
+        iceServers.add(<String, String>{'urls': turn});
+      }
+    }
+    if (iceServers.isEmpty) {
+      iceServers = <Map<String, String>>[
+        <String, String>{'urls': 'stun:stun.l.google.com:19302'},
+      ];
+    }
+    settings.iceServers = iceServers;
 
     helper!.start(settings);
   }

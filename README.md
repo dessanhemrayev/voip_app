@@ -76,3 +76,16 @@ The workflow uses commit messages to choose the next version:
 - The build number after `+` increments on every release.
 
 For example, a release may update `1.0.0+1` to `1.1.0+2`. The generated APK and release tag use the version name, such as `voip_app-v1.1.0.apk` and `v1.1.0`.
+
+## Configure STUN/TURN (WebRTC NAT traversal)
+
+By default the app uses Google's STUN server: stun:stun.l.google.com:19302. To improve connectivity behind NATs or symmetric firewalls you can add STUN and/or TURN servers in **Account > Register**:
+
+- **STUN URI** (optional) — e.g. stun:stun.your.provider:3478
+- **TURN URI** (optional) — e.g. 	urn:turn.your.provider:3478
+- **TURN Username** (optional)
+- **TURN Password/Credential** (optional)
+
+If only STUN is provided, ICE will try direct and STUN-assisted paths. If TURN is provided, TURN relays are used when direct/STUN fails. These values are saved locally in SharedPreferences (not encrypted). If all fields are empty, the default STUN is used.
+
+Example public STUN: stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302.

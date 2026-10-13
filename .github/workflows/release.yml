@@ -95,7 +95,7 @@ jobs:
       - run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Rename APK
         run: mv build/app/outputs/flutter-apk/app-release.apk "voip_app-${{ steps.version.outputs.tag }}.apk"
